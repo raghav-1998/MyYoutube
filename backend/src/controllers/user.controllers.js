@@ -1,5 +1,24 @@
-import { User } from "../models/user.model"
-import { uploadOnCloudinary } from "../utils/fileUpload"
+import { User } from "../models/user.model.js"
+import { uploadOnCloudinary } from "../utils/fileUpload.js"
+
+
+const generateAccessTokenAndRefreshToken=async(userId)=>{
+    try{
+        const user=await User.findById(userId);
+        const accessToken=user.generateAccessToken()
+        const refreshToken=user.generateRefreshToken();
+
+        user.refreshToken=refreshToken;
+        await user.save({validateBeforeSave:false})
+
+        return {accessToken,refreshToken}
+    }
+    catch(error){
+        throw new Error("Something went wrong while generating Access & Refresh Token")
+    }
+}
+
+
 const registerUser=async(req,res,next)=>{
     //get user detail from frontend
     //Validation 
@@ -28,8 +47,11 @@ const registerUser=async(req,res,next)=>{
             throw new Error("User already exists")
         }
 
-        const avatarLocalPath=req.file?.avatar[0]?.path;
-        const coverImageLocalPath=req.file?.coverImage[0]?.path;
+        //console.log(req.file)
+        const avatarLocalPath=req.files?.avatar[0]?.path;
+        const coverImageLocalPath=req.files?.coverImage[0]?.path;
+
+        //console.log(avatarLocalPath)
 
         if(!avatarLocalPath){
             throw new Error("Avatar Image is required")
@@ -37,6 +59,8 @@ const registerUser=async(req,res,next)=>{
 
         const avatar=await uploadOnCloudinary(avatarLocalPath)
         const coverImage=await uploadOnCloudinary(coverImageLocalPath)
+
+        //console.log(avatar)
 
         if(!avatar){
             throw new Error("Avatar File is required")
@@ -70,4 +94,65 @@ const registerUser=async(req,res,next)=>{
     }
 }
 
-export {registerUser};
+const loginUser=async(req,res,next)=>{
+    //Get Login details from frontend
+    //Check user exist
+    //If exist, then check password
+    //If password correct, then provide access token & refresh token
+    // send it with cookies
+    //send the response
+    try{
+        const {userName,email,password}=req.body;
+
+        if(!userName && !email){
+            throw new Error("Username or Email required")
+        }
+
+        /*
+        User.findOne(userName) //Find user based on userName
+        User.findOne(email)    //Find user based on email
+        */
+
+        const user=await User.findOne({
+            $or:[{userName},{email}]
+        })
+
+        if(!user){
+            throw new Error("User doesn't exist")
+        }
+
+        const isPasswordValid=await user.isPasswordCorrect(password)
+
+        if(!isPasswordValid){
+            throw new Error("Invalid User Credentials")
+        }
+
+        const {accessToken,refreshToken}=await generateAccessTokenAndRefreshToken(user._id);
+
+        const loggedInUser=await User.findById(user._id).select("-password -refreshToken")
+
+        const options={
+            httpOnly:true,
+            secure:true
+        }
+
+        return res
+        .status(200)
+        .cookie("accessToken",accessToken,options)
+        .cookie("refreshToken",refreshToken,options)
+        .json({
+            statusCode:201,
+            data:{
+                user:loggedInUser,accessToken,refreshToken
+            },
+            message:"User Logged In Successfully"
+        })
+    }
+    catch(error){
+        next(error)
+    }
+}
+export {
+    registerUser,
+    loginUser
+};
