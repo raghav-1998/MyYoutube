@@ -152,7 +152,45 @@ const loginUser=async(req,res,next)=>{
         next(error)
     }
 }
+
+//Logout user
+const logoutUser=async(req,res,next)=>{
+    //clear the cookies
+    //clear refresh token
+    try{
+        await User.findByIdAndUpdate(req.user._id,
+            {
+                $set:{
+                    refreshToken:undefined
+                },
+            },
+            {
+                new:true
+            }
+        )
+        
+        const options={
+            httpOnly:true,
+            secure:true
+        }
+
+        return res
+        .status(200)
+        .clearCookie("accessToken",options)
+        .clearCookie("refreshToken",options)
+        .json({
+            statusCode:200,
+            data:{},
+            message:"User Logged Out Successfully"
+        })
+
+    }
+    catch(error){
+        next(error)
+    }
+}
 export {
     registerUser,
-    loginUser
+    loginUser,
+    logoutUser
 };
