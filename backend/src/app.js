@@ -14,6 +14,7 @@ app.use(cors(corsOption))// Passing the options to configure CORS
 app.use(express.json({limit:"20kb"}))
 app.use(express.urlencoded({extended:true,limit:"20kb"}))
 app.use(express.static("public"))
+app.use(cookieParser());
 
 //import routers
 import userRouter from "./routes/user.routes.js";
